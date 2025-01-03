@@ -8,6 +8,10 @@ import {
   encodeAbiParameters,
   parseAbiParameters,
   parseEther,
+  parseUnits,
+  getAddress,
+  pad,
+  formatEther,
 } from "viem";
 import { formatDistanceToNow, format } from "date-fns";
 import { Lock } from "lucide-react";
@@ -33,9 +37,12 @@ import { defineStepper } from "@stepperize/react";
 import { Button } from "@/components/atoms/button";
 import useCapyProtocol from "@/hooks/use-capy-protocol";
 import { Separator } from "@/components/atoms/separator";
+import { config } from "@/providers/wagmi/config";
 import { YesNoChart } from "@/components/organisms/yes-no-chart";
 import { Input } from "@/components/atoms/input";
 import { RadialChart } from "@/components/organisms/radial-chart";
+import {waitForTransactionReceipt} from "wagmi/actions";
+import { opBNBTestnet, sepolia } from "wagmi/chains";
 
 const { useStepper } = defineStepper(
   {
@@ -91,7 +98,7 @@ const Fund = () => {
   const isMounted = useMounted();
   const stepper = useStepper();
   const isAdmin = true;
-  const { updateRecipientStatus, allocate, distribute } = useCapyProtocol();
+  const { stakeYes, stakeNo, withdrawFunds, formatAmount, getPollDetails } = useCapyProtocol();
 
   const { beneficiaries, strategy, participants, isLoading, error } =
     useFundData(fund);
@@ -106,6 +113,96 @@ const Fund = () => {
 
   const [isSaving, setIsSaving] = React.useState(false);
   const [isDistributing, setIsDistributing] = React.useState(false);
+  const [stakeAmount, setStakeAmount] = React.useState("");
+  const [isStaking, setIsStaking] = React.useState(false);
+  const [isWithdrawing, setIsWithdrawing] = React.useState(false);
+  
+  // Get poll address from params
+  const pollAddress = params.fund as `0x${string}`;
+
+  // Fetch poll details on mount
+  const [pollData, setPollData] = React.useState<any>(null);
+  
+  React.useEffect(() => {
+    const fetchPollDetails = async () => {
+      try {
+        const details = await getPollDetails({ pollAddress });
+        setPollData(details);
+      } catch (error) {
+        console.error("Error fetching poll details:", error);
+        toast.error("Failed to fetch poll details");
+      }
+    };
+    
+    if (pollAddress) {
+      fetchPollDetails();
+    }
+  }, [pollAddress, getPollDetails]);
+
+  const handleStakeYes = async () => {
+    if (!stakeAmount) return;
+    
+    setIsStaking(true);
+    try {
+      const formattedAmount = formatAmount(stakeAmount);
+      //const tx = await stakeYes(fund, formattedAmount);
+      const stakeYesTx = await stakeYes(pollAddress, formattedAmount);
+      const stakeYesReceipt = await waitForTransactionReceipt(config, {
+        hash: stakeYesTx,
+      });
+      console.log("Staking YES successful:", stakeYesReceipt.transactionHash);
+      toast.success("Successfully staked YES position");
+      setStakeAmount("");
+    } catch (error) {
+      console.error("Error staking YES:", error);
+      toast.error("Failed to stake YES position");
+    } finally {
+      setIsStaking(false);
+    }
+  };
+
+  const handleStakeNo = async () => {
+    if (!stakeAmount) return;
+    
+    setIsStaking(true);
+    try {
+      const formattedAmount = formatAmount(stakeAmount);
+      //const tx = await stakeNo(fund, formattedAmount);
+      const stakeNoTx = await stakeNo(pollAddress, formattedAmount);
+      const stakeNoReceipt = await waitForTransactionReceipt(config, {
+        hash: stakeNoTx,
+      });
+      
+      console.log("Staking NO successful:", stakeNoReceipt.transactionHash);
+      toast.success("Successfully staked NO position");
+      setStakeAmount("");
+    } catch (error) {
+      console.error("Error staking NO:", error);
+      toast.error("Failed to stake NO position");
+    } finally {
+      setIsStaking(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    setIsWithdrawing(true);
+    try {
+      //const tx = await withdrawFunds({ pollAddress: fund });
+      const withdrawTx = await withdrawFunds({ pollAddress: pollAddress });
+    
+      const withdrawReceipt = await waitForTransactionReceipt(config, {
+        hash: withdrawTx
+      });
+      
+      console.log("Withdrawal successful:", withdrawReceipt.transactionHash);
+      toast.success("Successfully withdrew funds");
+    } catch (error) {
+      console.error("Error withdrawing funds:", error);
+      toast.error("Failed to withdraw funds");
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
 
   type YesNo = "Yes" | "No";
 
@@ -255,17 +352,29 @@ const Fund = () => {
               <>
                 <div className=" flex gap-5 pt-5">
                   <Input
+                    type="number"
+                    value={stakeAmount}
+                    onChange={(e) => setStakeAmount(e.target.value)}
                     placeholder="Enter stake amount (USDe)"
                     className="h-12"
+                    // disabled={isStaking}
                   />
                   <RadialChart />
                 </div>
                 <div className=" flex  gap-8 ">
-                  <Button className="w-full h-12 bg-green-500 hover:bg-green-400">
-                    Stake YES
+                  <Button
+                    onClick={handleStakeYes}
+                    disabled={isStaking || !stakeAmount}
+                    className="w-full h-12 bg-green-500 hover:bg-green-400"
+                  >
+                    {isStaking ? "Staking..." : "Stake YES"}
                   </Button>
-                  <Button className="w-full h-12 bg-red-500 hover:bg-red-400">
-                    Stake NO
+                  <Button
+                    onClick={handleStakeNo}
+                    disabled={isStaking || !stakeAmount}
+                    className="w-full h-12 bg-red-500 hover:bg-red-400"
+                  >
+                    {isStaking ? "Staking..." : "Stake NO"}
                   </Button>
                 </div>
               </>
@@ -308,8 +417,12 @@ const Fund = () => {
                   </p>
                 </div>
                 <div className=" flex justify-end">
-                  <button className="bg-[#33CB82] hover:bg-[#33CB82]/80 rounded-[14px] h-[50px] px-4 flex items-center gap-5">
-                    Withdraw Funds
+                  <button
+                    onClick={handleWithdraw}
+                    disabled={isWithdrawing}
+                    className="bg-[#33CB82] hover:bg-[#33CB82]/80 rounded-[14px] h-[50px] px-4 flex items-center gap-5"
+                  >
+                    {isWithdrawing ? "Withdrawing..." : "Withdraw Funds"}
                     <div className="w-7 h-7 rounded-full bg-[#191A23] flex justify-center items-center">
                       <ArrowUpRight
                         strokeWidth={3}
