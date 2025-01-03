@@ -1,6 +1,5 @@
 const data = {
     name: "CapyPoll",
-    address: "",
     abi: [
       {
         type: "function",
@@ -31,6 +30,58 @@ const data = {
       {
         type: "function",
         name: "DISTRIBUTION_PERCENTAGE",
+        inputs: [],
+        outputs: [
+          {
+            name: "",
+            type: "uint256",
+            internalType: "uint256"
+          }
+        ],
+        stateMutability: "view"
+      },
+      {
+        type: "function",
+        name: "EPOCH_1_DISTRIBUTION",
+        inputs: [],
+        outputs: [
+          {
+            name: "",
+            type: "uint256",
+            internalType: "uint256"
+          }
+        ],
+        stateMutability: "view"
+      },
+      {
+        type: "function",
+        name: "EPOCH_2_DISTRIBUTION",
+        inputs: [],
+        outputs: [
+          {
+            name: "",
+            type: "uint256",
+            internalType: "uint256"
+          }
+        ],
+        stateMutability: "view"
+      },
+      {
+        type: "function",
+        name: "EPOCH_3_DISTRIBUTION",
+        inputs: [],
+        outputs: [
+          {
+            name: "",
+            type: "uint256",
+            internalType: "uint256"
+          }
+        ],
+        stateMutability: "view"
+      },
+      {
+        type: "function",
+        name: "EPOCH_4_DISTRIBUTION",
         inputs: [],
         outputs: [
           {
@@ -92,25 +143,6 @@ const data = {
         ],
         outputs: [],
         stateMutability: "nonpayable"
-      },
-      {
-        type: "function",
-        name: "epochDistributionPercentages",
-        inputs: [
-          {
-            name: "",
-            type: "uint256",
-            internalType: "uint256"
-          }
-        ],
-        outputs: [
-          {
-            name: "",
-            type: "uint256",
-            internalType: "uint256"
-          }
-        ],
-        stateMutability: "view"
       },
       {
         type: "function",

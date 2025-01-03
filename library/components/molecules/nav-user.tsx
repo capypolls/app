@@ -8,7 +8,7 @@ import {
   useDisconnect,
   useEnsName,
 } from "wagmi";
-
+import { ConnectKitButton } from "connectkit";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,14 +43,15 @@ export function UserNav() {
 
   if (!isConnected && !address) {
     return (
-      <Squircle cornerRadius={20} cornerSmoothing={1}>
-        <button
-          onClick={() => setOpen(true)}
-          className="bg-[#33CB82] hover:bg-[#33CB82]/80 font-medium px-6 rounded-[0] py-4 transition-colors duration-200"
-        >
-          Connect Wallet
-        </button>
-      </Squircle>
+      // <Squircle cornerRadius={20} cornerSmoothing={1}>
+      //   <button
+      //     onClick={() => setOpen(true)}
+      //     className="bg-[#33CB82] hover:bg-[#33CB82]/80 font-medium px-6 rounded-[0] py-4 transition-colors duration-200"
+      //   >
+      //     Connect Wallet
+      //   </button>
+      // </Squircle>
+      <ConnectKitButton />
     );
   }
 

@@ -5,36 +5,37 @@ import {Script, console} from "forge-std/Script.sol";
 import {CapyCore} from "../../src/CapyCore.sol";
 import {CapyPoll} from "../../src/CapyPoll.sol";
 import {PollToken} from "../../src/PollToken.sol";
-import {MockUSDe, MockSUSDe} from "../../src/MockTokens.sol";
+//import {MockUSDe, MockSUSDe} from "../../src/MockTokens.sol";
 
 contract DeployCapyPolls is Script {
     // Contract instances
     CapyPoll public pollImplementation;
     PollToken public tokenImplementation;
     CapyCore public capyCore;
-    MockUSDe public mockUsde;
-    MockSUSDe public mockSusde;
+    // MockUSDe public mockUsde;
+    // MockSUSDe public mockSusde;
 
     function run() external {
         // Load configuration from environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
-        //address usdeToken = vm.envAddress("USDE_TOKEN_ADDRESS");
-        //address susdeToken = vm.envAddress("SUSDE_TOKEN_ADDRESS");
+        address usdeToken = vm.envAddress("USDE_TOKEN_ADDRESS");
+        address susdeToken = vm.envAddress("SUSDE_TOKEN_ADDRESS");
 
         console.log("Starting deployment with deployer:", deployer);
-        //console.log("USDe Token:", usdeToken);
-       // console.log("SUSDe Token:", susdeToken);
+        console.log("USDe Token:", usdeToken);
+       console.log("SUSDe Token:", susdeToken);
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // 1. Deploy implementation contracts first
-        // Deploy mock tokens first
-        mockUsde = new MockUSDe();
-        mockSusde = new MockSUSDe();
+        //1. Deploy implementation contracts first
+
+        // // Deploy mock tokens first
+        // mockUsde = new MockUSDe();
+        // mockSusde = new MockSUSDe();
         
-        console.log("Mock USDe deployed at:", address(mockUsde));
-        console.log("Mock sUSDe deployed at:", address(mockSusde));
+        // console.log("Mock USDe deployed at:", address(mockUsde));
+        // console.log("Mock sUSDe deployed at:", address(mockSusde));
 
         // Deploy implementation contracts
         pollImplementation = new CapyPoll();
@@ -46,16 +47,16 @@ contract DeployCapyPolls is Script {
         // 2. Deploy CapyCore with implementations
         // Deploy CapyCore with mock tokens
         capyCore = new CapyCore(
-                //             address(pollImplementation),  // Poll implementation for cloning
-                // address(tokenImplementation), // Token implementation for cloning
-                // usdeToken,                   // USDe token address
-                // susdeToken,                  // SUSDe token address
-                // deployer                     // Initial owner
-            address(pollImplementation),
-            address(tokenImplementation),
-            address(mockUsde),
-            address(mockSusde),
-            deployer
+                            address(pollImplementation),  // Poll implementation for cloning
+                address(tokenImplementation), // Token implementation for cloning
+                usdeToken,                   // USDe token address
+                susdeToken,                  // SUSDe token address
+                deployer                     // Initial owner
+            // address(pollImplementation),
+            // address(tokenImplementation),
+            // address(mockUsde),
+            // address(mockSusde),
+            //deployer
         );
         console.log("CapyCore deployed at:", address(capyCore));
 
@@ -64,8 +65,8 @@ contract DeployCapyPolls is Script {
         // Log final configuration
         console.log("\nDeployment completed!");
         console.log("-------------------");
-        console.log("Mock USDe:", address(mockUsde));
-        console.log("Mock sUSDe:", address(mockSusde));
+        // console.log("Mock USDe:", address(mockUsde));
+        // console.log("Mock sUSDe:", address(mockSusde));
         console.log("Poll Implementation:", address(pollImplementation));
         console.log("Token Implementation:", address(tokenImplementation));
         console.log("CapyCore:", address(capyCore));
@@ -83,12 +84,12 @@ contract DeployCapyPolls is Script {
         (bool exists, ) = capyCore.getPollDetails(address(pollImplementation));
         require(!exists, "Poll implementation should not be registered as a poll");
         
-        // // Verify core functionality
-        // require(capyCore.cloneablePoll() == address(pollImplementation), "Invalid poll implementation");
-        // require(capyCore.cloneableToken() == address(tokenImplementation), "Invalid token implementation");
+        // Verify core functionality
+        require(capyCore.cloneablePoll() == address(pollImplementation), "Invalid poll implementation");
+        require(capyCore.cloneableToken() == address(tokenImplementation), "Invalid token implementation");
 
-        require(address(mockUsde) != address(0), "MockUSDe not deployed");
-        require(address(mockSusde) != address(0), "MockSUSDe not deployed");
+        // require(address(mockUsde) != address(0), "MockUSDe not deployed");
+        // require(address(mockSusde) != address(0), "MockSUSDe not deployed");
         
         console.log("Verification passed");
     }

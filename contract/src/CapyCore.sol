@@ -127,19 +127,15 @@ contract CapyCore is ReentrancyGuard, Ownable {
             initialStake
         );
 
-        // // Store the nonce first
-        // uint256 currentNonce = _nonces[msg.sender];
-        // _nonces[msg.sender] = currentNonce + 1;
-
         // Deploy poll contract
         bytes32 pollSalt = keccak256(
-            abi.encodePacked(msg.sender, currentNonce)
+            abi.encodePacked(msg.sender, _nonces[msg.sender]++)
         );
         pollAddress = Clones.cloneDeterministic(cloneablePoll, pollSalt);
 
         // Deploy YES token
         bytes32 yesSalt = keccak256(
-            abi.encodePacked("YES", msg.sender, currentNonce)
+            abi.encodePacked("YES", msg.sender, _nonces[msg.sender])
         );
         address yesToken = Clones.cloneDeterministic(cloneableToken, yesSalt);
         PollToken(yesToken).initialize(
@@ -150,7 +146,7 @@ contract CapyCore is ReentrancyGuard, Ownable {
 
         // Deploy NO token
         bytes32 noSalt = keccak256(
-            abi.encodePacked("NO", msg.sender, currentNonce)
+            abi.encodePacked("NO", msg.sender, _nonces[msg.sender])
         );
         address noToken = Clones.cloneDeterministic(cloneableToken, noSalt);
         PollToken(noToken).initialize(noTokenName, noTokenSymbol, pollAddress);

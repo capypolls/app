@@ -16,6 +16,7 @@ import {
 import { formatDistanceToNow, format } from "date-fns";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
+import { waitForTransactionReceipt } from "wagmi/actions";
 
 import {
   Tabs,
@@ -27,7 +28,7 @@ import FundStats from "@/components/molecules/fund-stats";
 import Beneficiary from "@/components/organisms/beneficiary-profile";
 import NewTrustFundApplication from "@/components/organisms/trust-fund-application";
 import useFundData from "@/hooks/use-fund-data";
-import { useMounted } from "@/hooks/use-mounted";
+//import { useMounted } from "@/hooks/use-mounted";
 import { ellipsisAddress, getInitials, isValidUrl } from "@/utils";
 import ParticipantProfile, {
   Participant,
@@ -35,14 +36,15 @@ import ParticipantProfile, {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/atoms/avatar";
 import { defineStepper } from "@stepperize/react";
 import { Button } from "@/components/atoms/button";
-import useCapyProtocol from "@/hooks/use-capy-protocol";
-import { Separator } from "@/components/atoms/separator";
-import { config } from "@/providers/wagmi/config";
-import { YesNoChart } from "@/components/organisms/yes-no-chart";
 import { Input } from "@/components/atoms/input";
+import { Separator } from "@/components/atoms/separator";
+
+import { YesNoChart } from "@/components/organisms/yes-no-chart";
 import { RadialChart } from "@/components/organisms/radial-chart";
-import {waitForTransactionReceipt} from "wagmi/actions";
 import { opBNBTestnet, sepolia } from "wagmi/chains";
+import useCapyProtocol from "@/hooks/use-capy-protocol";
+import { useMounted } from "@/hooks/use-mounted";
+import { config } from "@/providers/wagmi/config";
 
 const { useStepper } = defineStepper(
   {
@@ -94,46 +96,34 @@ const recentActivity = [
 
 const Fund = () => {
   const params = useParams();
-  const fund = params.fund as Address;
+  const pollAddress = params.fund as Address;
   const isMounted = useMounted();
   const stepper = useStepper();
   const isAdmin = true;
-  const { stakeYes, stakeNo, withdrawFunds, formatAmount, getPollDetails } = useCapyProtocol();
+  const { stakeYes, stakeNo, withdrawFunds, formatAmount, getPollDetails, approveUSDe } = useCapyProtocol();
 
-  const { beneficiaries, strategy, participants, isLoading, error } =
-    useFundData(fund);
-
-  // State for tracking changes in participant statuses and allocations
-  const [participantChanges, setParticipantChanges] = React.useState<{
-    [address: string]: {
-      status?: Participant["status"];
-      allocation?: string;
-    };
-  }>({});
-
-  const [isSaving, setIsSaving] = React.useState(false);
-  const [isDistributing, setIsDistributing] = React.useState(false);
-  const [stakeAmount, setStakeAmount] = React.useState("");
   const [isStaking, setIsStaking] = React.useState(false);
   const [isWithdrawing, setIsWithdrawing] = React.useState(false);
-  
-  // Get poll address from params
-  const pollAddress = params.fund as `0x${string}`;
-
-  // Fetch poll details on mount
+  const [stakeAmount, setStakeAmount] = React.useState("");
   const [pollData, setPollData] = React.useState<any>(null);
-  
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<Error | null>(null);
+
+  // Fetch poll details
   React.useEffect(() => {
     const fetchPollDetails = async () => {
       try {
+        setIsLoading(true);
         const details = await getPollDetails({ pollAddress });
         setPollData(details);
-      } catch (error) {
-        console.error("Error fetching poll details:", error);
-        toast.error("Failed to fetch poll details");
+      } catch (err) {
+        setError(err as Error);
+        console.error("Error fetching poll details:", err);
+      } finally {
+        setIsLoading(false);
       }
     };
-    
+
     if (pollAddress) {
       fetchPollDetails();
     }
@@ -145,7 +135,13 @@ const Fund = () => {
     setIsStaking(true);
     try {
       const formattedAmount = formatAmount(stakeAmount);
-      //const tx = await stakeYes(fund, formattedAmount);
+      const approveTx = await approveUSDe(pollAddress, formattedAmount);
+      // Wait for approve transaction
+      const approveReceipt = await waitForTransactionReceipt(config, {
+        hash: approveTx
+      });
+      console.log("Approval successful:", approveReceipt.transactionHash);
+
       const stakeYesTx = await stakeYes(pollAddress, formattedAmount);
       const stakeYesReceipt = await waitForTransactionReceipt(config, {
         hash: stakeYesTx,
@@ -153,6 +149,10 @@ const Fund = () => {
       console.log("Staking YES successful:", stakeYesReceipt.transactionHash);
       toast.success("Successfully staked YES position");
       setStakeAmount("");
+      
+      // Refetch poll details after successful stake
+      const updatedDetails = await getPollDetails({ pollAddress });
+      setPollData(updatedDetails);
     } catch (error) {
       console.error("Error staking YES:", error);
       toast.error("Failed to stake YES position");
@@ -167,7 +167,13 @@ const Fund = () => {
     setIsStaking(true);
     try {
       const formattedAmount = formatAmount(stakeAmount);
-      //const tx = await stakeNo(fund, formattedAmount);
+      const approveTx = await approveUSDe(pollAddress, formattedAmount);
+        // Wait for approve transaction
+      const approveReceipt = await waitForTransactionReceipt(config, {
+        hash: approveTx
+      });
+      console.log("Approval successful:", approveReceipt.transactionHash);
+
       const stakeNoTx = await stakeNo(pollAddress, formattedAmount);
       const stakeNoReceipt = await waitForTransactionReceipt(config, {
         hash: stakeNoTx,
@@ -176,6 +182,10 @@ const Fund = () => {
       console.log("Staking NO successful:", stakeNoReceipt.transactionHash);
       toast.success("Successfully staked NO position");
       setStakeAmount("");
+      
+      // Refetch poll details after successful stake
+      const updatedDetails = await getPollDetails({ pollAddress });
+      setPollData(updatedDetails);
     } catch (error) {
       console.error("Error staking NO:", error);
       toast.error("Failed to stake NO position");
@@ -206,139 +216,92 @@ const Fund = () => {
 
   type YesNo = "Yes" | "No";
 
-  const winner: YesNo = "No";
   const currentTime = BigInt(Math.floor(Date.now() / 1000));
-  const isRegistrationOpen =
-    strategy?.registrationStartTime &&
-    strategy?.registrationEndTime &&
-    currentTime >= strategy.registrationStartTime &&
-    currentTime <= strategy.registrationEndTime;
+  const winner: YesNo = "No";
 
   if (!isMounted) return null;
-  if (isLoading) {
+  if (!pollData) {
     return (
       <div className="flex flex-col items-center justify-center h-full">
         <Loader className="animate-spin text-gray-500 mt-36 mb-4" size={24} />
-        <p className="text-gray-700">Loading funds...</p>
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        {error?.message}
-      </div>
-    );
-  }
-  if (!strategy?.strategyAddress) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 mt-32">
-        Trust fund does not exist yet
+        <p className="text-gray-700">Loading poll details...</p>
       </div>
     );
   }
 
+  if (!pollData.exists) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4 mt-32">
+        Poll does not exist
+      </div>
+    );
+  }
+  
+// Only calculate isPollActive after we know pollData exists
+  const isPollActive = !pollData.pollInfo.isResolved && 
+    currentTime <= pollData.pollInfo.endTimestamp;
+
   return (
-    <div className="flex-1 space-y-4  p-6">
-      <div className=" flex md:gap-6 flex-col md:flex-row">
-        <div className=" flex flex-col md:w-2/5 gap-6">
+    <div className="flex-1 space-y-4 p-6">
+      <div className="flex md:gap-6 flex-col md:flex-row">
+        <div className="flex flex-col md:w-2/5 gap-6">
           <div className="flex gap-2">
             <Avatar>
               <AvatarImage
-                src={
-                  isValidUrl(strategy?.avatar ?? "")
-                    ? strategy?.avatar
-                    : `https://avatar.vercel.sh/${
-                        (strategy?.strategyAddress ?? "") +
-                        (strategy?.name ?? "")
-                      }`
-                }
-                alt={`${strategy?.name ?? "Trust Fund"} logo`}
+                src={`https://avatar.vercel.sh/${pollAddress}`}
+                alt="Poll Avatar"
               />
               <AvatarFallback>
-                {getInitials(strategy?.name ?? "")}
+                {getInitials(pollData.description)}
               </AvatarFallback>
             </Avatar>
-            {/* <h2 className="text-3xl font-bold tracking-tight">
-              {strategy?.name || `Trust ${ellipsisAddress(fund)}`}
-            </h2> */}
             <h2 className="text-3xl font-bold tracking-tight">
-              Will Ethena become the top DeFi protocol by TVL in Q1 2025?
+               {/* Ethena become the top DeFi protocol by TVL in Q1 2025? */}
+              {pollData.description}
             </h2>
           </div>
-          <div className=" ">
-            {/* {strategy?.description || (
-              <p className=" text-gray-800">This is trust fund {fund}.</p>
-            )} */}
-            <p className=" text-gray-800">
-              Ethena must rank as the top DeFi protocol by TVL on DeFiLlama for
+
+          <div>
+            <p className="text-gray-800">
+              {pollData.description}
+              {/* Ethena must rank as the top DeFi protocol by TVL on DeFiLlama for
               at least 7 consecutive days in Q1 2025, with TVL measured in USD
               from genuine user deposits; disqualifications include hacks over
-              $10M, prolonged pauses, or TVL manipulation.
+              $10M, prolonged pauses, or TVL manipulation. */}
             </p>
-            {!isRegistrationOpen && strategy?.registrationEndTime && (
-              <p className="text-sm text-gray-500 mt-2">
-                Registration closed{" "}
-                {formatDistanceToNow(
-                  new Date(Number(strategy.registrationEndTime) * 1000),
-                  { addSuffix: true }
-                )}{" "}
-                (ended{" "}
-                {format(
-                  new Date(Number(strategy.registrationEndTime) * 1000),
-                  "PPp"
-                )}
-                )
-              </p>
-            )}
-            {isRegistrationOpen &&
-              strategy?.registrationStartTime &&
-              strategy?.registrationEndTime && (
-                <p className="text-sm text-gray-500 mt-2">
-                  Registration open:{" "}
-                  {formatDistanceToNow(
-                    new Date(Number(strategy.registrationEndTime) * 1000),
-                    { addSuffix: true }
-                  )}{" "}
-                  remaining (from{" "}
-                  {format(
-                    new Date(Number(strategy.registrationStartTime) * 1000),
-                    "PPp"
-                  )}{" "}
-                  to{" "}
-                  {format(
-                    new Date(Number(strategy.registrationEndTime) * 1000),
-                    "PPp"
-                  )}
-                  )
-                </p>
-              )}
+            <p className="text-sm text-gray-500 mt-2">
+              Ends {formatDistanceToNow(new Date(Number(pollData.pollInfo.endTimestamp) * 1000), { addSuffix: true })}
+            </p>
           </div>
 
-          <FundStats data={strategy} />
-          {/* <div className="flex items-center space-x-2">
-            {strategy?.poolId && (
-              <NewTrustFundApplication poolId={strategy?.poolId} />
-            )}
-          </div> */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="p-4 border rounded-lg">
+              <h3 className="font-semibold">Total YES Staked</h3>
+              <p className="text-2xl">{formatEther(pollData.stats.totalYesStaked)} USDe</p>
+            </div>
+            <div className="p-4 border rounded-lg">
+              <h3 className="font-semibold">Total NO Staked</h3>
+              <p className="text-2xl">{formatEther(pollData.stats.totalNoStaked)} USDe</p>
+            </div>
+          </div>
         </div>
 
-        <div className=" w-1 hidden md:block">
+        <div className="w-1 hidden md:block">
           <Separator orientation="vertical" className="" />
         </div>
 
-        <Tabs defaultValue="polls" className=" space-y-4 md:w-3/5 pt-6 md:pt-0">
-          <div className="flex border-b ">
-            <TabsList className=" bg-white">
+        <Tabs defaultValue="polls" className="space-y-4 md:w-3/5 pt-6 md:pt-0">
+          <div className="flex border-b">
+            <TabsList className="bg-white">
               <TabsTrigger
                 value="polls"
-                className=" data-[state=active]:border-b-2 data-[state=active]:border-green-300 rounded-none  data-[state=active]:shadow-none text-lg"
+                className="data-[state=active]:border-b-2 data-[state=active]:border-green-300 rounded-none data-[state=active]:shadow-none text-lg"
               >
                 Market
               </TabsTrigger>
               <TabsTrigger
                 value="activities"
-                className=" data-[state=active]:border-b-2 data-[state=active]:border-green-300 rounded-none  data-[state=active]:shadow-none text-lg"
+                className="data-[state=active]:border-b-2 data-[state=active]:border-green-300 rounded-none data-[state=active]:shadow-none text-lg"
               >
                 Activities
               </TabsTrigger>
@@ -348,9 +311,9 @@ const Fund = () => {
           <TabsContent value="polls" className="space-y-10">
             <YesNoChart />
 
-            {isRegistrationOpen ? (
+            {isPollActive ? (
               <>
-                <div className=" flex gap-5 pt-5">
+                <div className="flex gap-5 pt-5">
                   <Input
                     type="number"
                     value={stakeAmount}
@@ -361,7 +324,7 @@ const Fund = () => {
                   />
                   <RadialChart />
                 </div>
-                <div className=" flex  gap-8 ">
+                <div className="flex gap-8">
                   <Button
                     onClick={handleStakeYes}
                     disabled={isStaking || !stakeAmount}
@@ -379,23 +342,23 @@ const Fund = () => {
                 </div>
               </>
             ) : (
-              <div className=" border border-gray-200 p-8 rounded-2xl justify-between items-end mt-10">
-                <div className=" pb-3">
-                  <div className=" flex gap-3 items-center">
+              <div className="border border-gray-200 p-8 rounded-2xl justify-between items-end mt-10">
+                <div className="pb-3">
+                  <div className="flex gap-3 items-center">
                     <div
-                      className={` ${
+                      className={`${
                         (winner as YesNo) === "Yes"
-                          ? " bg-green-200"
-                          : " bg-red-200"
+                          ? "bg-green-200"
+                          : "bg-red-200"
                       } min-w-12 h-12 rounded-full grid place-items-center`}
                     >
                       <Check
                         size={30}
                         strokeWidth={3}
-                        className={` ${
+                        className={`${
                           (winner as YesNo) === "Yes"
-                            ? " text-green-500"
-                            : " text-red-500"
+                            ? "text-green-500"
+                            : "text-red-500"
                         }`}
                       />
                     </div>
@@ -403,20 +366,20 @@ const Fund = () => {
                       Results are in! {winner} Won 🎯
                     </h2>
                   </div>
-                  <p className=" text-gray-800 text-lg pt-2">
+                  <p className="text-gray-800 text-lg pt-2">
                     For {winner} voters, your tokens retain their full
                     value—boosted by the interest yield from everyone&apos;s
                     stakes. Hold or trade your {winner} tokens as you like. You
                     can also withdraw your USDE stake anytime. <br />
-                    For {(winner as YesNo) === "Yes" ? " No" : " Yes"} voters,
+                    For {(winner as YesNo) === "Yes" ? "No" : "Yes"} voters,
                     prepare for the double-blitz with 500x inflation in 24 hours
                     and another 500x in 48 hours. Withdraw your USDE
                     stake—it&apos;s no-loss, and your
-                    {(winner as YesNo) === "Yes" ? " No" : " Yes"} tokens are
+                    {(winner as YesNo) === "Yes" ? "No" : "Yes"} tokens are
                     now purely for entertainment!{" "}
                   </p>
                 </div>
-                <div className=" flex justify-end">
+                <div className="flex justify-end">
                   <button
                     onClick={handleWithdraw}
                     disabled={isWithdrawing}

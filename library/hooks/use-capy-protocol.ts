@@ -18,6 +18,7 @@ import {
 const CAPY_CORE_ADDRESS = capyCore.address as `0x${string}`;
 const CAPY_POLL_ABI = capyPoll.abi;
 const CAPY_CORE_ABI = capyCore.abi;
+const USDE_TOKEN_ADDRESS = "0x9E1eF5A92C9Bf97460Cd00C0105979153EA45b27" as `0x${string}`
 
 // Types for function parameters
 type FunctionParams = {
@@ -43,10 +44,15 @@ type FunctionParams = {
   getPollDetails: {
     pollAddress: Address;
   };
+  approve: {
+    token: Address;
+    spender: Address;
+    amount: bigint;
+  };
 };
 
 const useCapyProtocol = () => {
-  // Create Poll Function
+  // Complex operation with multiple contract interactions - keep useCallback
   const createPoll = useCallback(async (params: FunctionParams["createPoll"]) => {
     try {
       const { request } = await simulateContract(config, {
@@ -108,7 +114,33 @@ const useCapyProtocol = () => {
     });
   };
 
-  // Withdraw Funds Function
+    // Approve Function
+    const approve = useCallback(async (params: FunctionParams["approve"]) => {
+      try {
+        const { request } = await simulateContract(config, {
+          abi: erc20Abi,
+          address: params.token,
+          functionName: "approve",
+          args: [params.spender, params.amount],
+        });
+        return writeContract(config, request);
+      } catch (error) {
+        console.error("Error approving token:", error);
+        throw error;
+      }
+    }, []);
+  
+    
+  // Simple wrapper for USDe approval
+  const approveUSDe = async (spender: Address, amount: bigint) => {
+    return approve({
+      token: USDE_TOKEN_ADDRESS,
+      spender,
+      amount,
+    });
+  };
+
+  // Contract interaction that might be passed down - keep useCallback
   const withdrawFunds = useCallback(async (params: FunctionParams["withdrawFunds"]) => {
     try {
       const { request } = await simulateContract(config, {
@@ -125,6 +157,7 @@ const useCapyProtocol = () => {
   }, []);
 
   // Get Poll Details Function
+  // Complex operation with multiple reads - keep useCallback
   const getPollDetails = useCallback(async (params: FunctionParams["getPollDetails"]) => {
     try {
       const [exists, description] = await readContract(config, {
@@ -198,15 +231,15 @@ const useCapyProtocol = () => {
     }
   }, []);
 
-  // Helper function to format amounts with proper decimals
-  const formatAmount = useCallback((amount: string | number) => {
+  // Simple utility function - remove useCallback
+  const formatAmount = (amount: string | number) => {
     try {
       return parseUnits(amount.toString(), 18); // Assuming 18 decimals for tokens
     } catch (error) {
       console.error("Error formatting amount:", error);
       throw error;
     }
-  }, []);
+  };
 
   return {
     // Core functions
@@ -219,6 +252,8 @@ const useCapyProtocol = () => {
     
     // Utilities
     formatAmount,
+    approve,
+    approveUSDe
   };
 };
 

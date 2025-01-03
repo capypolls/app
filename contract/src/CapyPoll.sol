@@ -43,7 +43,12 @@ contract CapyPoll is OwnableUpgradeable {
     uint256 public constant PAID_LIST_PERCENTAGE = 3000; // 30%
     uint256 public constant BATCH_SIZE = 100;
 
-    uint256[] public epochDistributionPercentages = [3657, 2743, 2058, 1542]; // Scaled by 100
+    uint256 public constant EPOCH_1_DISTRIBUTION = 3657;
+    uint256 public constant EPOCH_2_DISTRIBUTION = 2743;
+    uint256 public constant EPOCH_3_DISTRIBUTION = 2058;
+    uint256 public constant EPOCH_4_DISTRIBUTION = 1542;
+
+    // uint256[] public constant epochDistributionPercentages; // Scaled by 100
 
     // State variables
     PollInfo public pollInfo;
@@ -154,17 +159,40 @@ contract CapyPoll is OwnableUpgradeable {
         );
     }
 
-    function calculateEpochDistribution(
-        uint256 epochNumber
-    ) internal view returns (uint256) {
-        require(epochNumber <= numEpochs, "Invalid epoch");
+    // function calculateEpochDistribution(
+    //     uint256 epochNumber
+    // ) internal view returns (uint256) {
+    //     require(epochNumber <= numEpochs, "Invalid epoch");
 
-        uint256 totalDistribution = (MAX_TOKEN_SUPPLY *
-            DISTRIBUTION_PERCENTAGE) / 10000;
-        return
-            (totalDistribution *
-                epochDistributionPercentages[epochNumber - 1]) / 10000;
+    //     require(epochNumber > 0, "Invalid epoch number");
+    //     require(epochNumber <= epochDistributionPercentages.length, "Epoch number out of bounds");
+
+    //     uint256 totalDistribution = (MAX_TOKEN_SUPPLY *
+    //         DISTRIBUTION_PERCENTAGE) / 10000;
+    //     return
+    //         (totalDistribution *
+    //             epochDistributionPercentages[epochNumber - 1]) / 10000;
+    // }
+
+    function calculateEpochDistribution(uint256 epochNumber) internal view returns (uint256) {
+    require(epochNumber <= numEpochs, "Invalid epoch");
+    
+    uint256 epochDistribution;
+    if (epochNumber == 1) {
+        epochDistribution = EPOCH_1_DISTRIBUTION;
+    } else if (epochNumber == 2) {
+        epochDistribution = EPOCH_2_DISTRIBUTION;
+    } else if (epochNumber == 3) {
+        epochDistribution = EPOCH_3_DISTRIBUTION;
+    } else if (epochNumber == 4) {
+        epochDistribution = EPOCH_4_DISTRIBUTION;
+    } else {
+        revert("Invalid epoch number");
     }
+
+    uint256 totalDistribution = (MAX_TOKEN_SUPPLY * DISTRIBUTION_PERCENTAGE) / 10000;
+    return (totalDistribution * epochDistribution) / 10000;
+}
 
     function distributeEpochRewards(uint256 epochNumber) external {
         require(epochNumber <= currentEpoch, "Epoch not started");

@@ -1,6 +1,6 @@
 const data = {
     name: "CapyCore",
-    address: "0x81D9796e071D39CbEE043975002fFc03cbADc96f",
+    address: "0x97303aD8246367979eC596Fb29fc68253B9FCa73",
     abi: [
       {
         type: "constructor",
