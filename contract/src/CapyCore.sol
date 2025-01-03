@@ -127,9 +127,9 @@ contract CapyCore is ReentrancyGuard, Ownable {
             initialStake
         );
 
-        // Store the nonce first
-        uint256 currentNonce = _nonces[msg.sender];
-        _nonces[msg.sender] = currentNonce + 1;
+        // // Store the nonce first
+        // uint256 currentNonce = _nonces[msg.sender];
+        // _nonces[msg.sender] = currentNonce + 1;
 
         // Deploy poll contract
         bytes32 pollSalt = keccak256(
